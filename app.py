@@ -3,13 +3,14 @@ Dashboard Premium — ICAI · Corredor del Bajío
 Equipo 11 · Taller de Fundamentos para el Análisis de Datos
 """
 
+import os
 import time
 import requests
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-BASE_URL = "http://127.0.0.1:8000"
+BASE_URL = os.getenv("API_URL", "http://127.0.0.1:8000")
 
 st.set_page_config(
     page_title="ICAI · Corredor del Bajío",
