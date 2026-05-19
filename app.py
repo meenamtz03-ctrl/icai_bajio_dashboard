@@ -1,947 +1,764 @@
-"""
-Dashboard Premium — ICAI · Corredor del Bajío
-Equipo 11 · Taller de Fundamentos para el Análisis de Datos
-"""
-
-import os
-import time
-import requests
-import pandas as pd
-import plotly.graph_objects as go
 import streamlit as st
-
-BASE_URL = os.getenv("API_URL", "http://127.0.0.1:8000")
+import pandas as pd
+import numpy as np
+import plotly.express as px
+import plotly.graph_objects as go
 
 st.set_page_config(
-    page_title="ICAI · Corredor del Bajío",
-    page_icon="◈",
+    page_title="ICAI - Atractividad Industrial del Bajio",
+    page_icon="📊",
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="expanded"
 )
 
-# ─────────────────────────────────────────────────────────────────────
-# SVG ICONS
-# ─────────────────────────────────────────────────────────────────────
-ICO = {
-    "trophy": """<svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-        <path d="M5 2h6v5a3 3 0 0 1-6 0V2z" stroke="currentColor" stroke-width="1.4" fill="none" stroke-linejoin="round"/>
-        <path d="M5 4H3v1a2 2 0 0 0 2 2" stroke="currentColor" stroke-width="1.3" fill="none"/>
-        <path d="M11 4h2v1a2 2 0 0 1-2 2" stroke="currentColor" stroke-width="1.3" fill="none"/>
-        <line x1="8" y1="10" x2="8" y2="13" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
-        <line x1="5" y1="14" x2="11" y2="14" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
-    </svg>""",
-}
+# ── SVG Icons ─────────────────────────────────────────────────────────
+SVG_CHART = """<svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect x="3" y="12" width="4" height="9" rx="1" fill="#0A9396"/>
+  <rect x="10" y="7" width="4" height="14" rx="1" fill="#0A9396" opacity="0.7"/>
+  <rect x="17" y="3" width="4" height="18" rx="1" fill="#0A9396" opacity="0.4"/>
+  <line x1="3" y1="21" x2="21" y2="21" stroke="#0A9396" stroke-width="1.5" stroke-linecap="round"/>
+</svg>"""
 
-def ico(name: str, color: str = "currentColor", size: int = 16) -> str:
-    svg = ICO.get(name, "")
-    return (svg
-        .replace('width="16"',  f'width="{size}"')
-        .replace('height="16"', f'height="{size}"')
-        .replace("currentColor", color))
+SVG_TROPHY = """<svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <path d="M6 3h12v7a6 6 0 01-12 0V3z" stroke="#F4A261" stroke-width="1.8" fill="none"/>
+  <path d="M6 6H3a2 2 0 002 2h1M18 6h3a2 2 0 01-2 2h-1" stroke="#F4A261" stroke-width="1.8" stroke-linecap="round"/>
+  <path d="M12 16v4M8 20h8" stroke="#F4A261" stroke-width="1.8" stroke-linecap="round"/>
+</svg>"""
 
+SVG_TARGET = """<svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <circle cx="12" cy="12" r="9" stroke="#EE6C4D" stroke-width="1.8"/>
+  <circle cx="12" cy="12" r="5" stroke="#EE6C4D" stroke-width="1.8"/>
+  <circle cx="12" cy="12" r="1.5" fill="#EE6C4D"/>
+</svg>"""
 
-# ─────────────────────────────────────────────────────────────────────
-# PALETA METÁLICA
-# ─────────────────────────────────────────────────────────────────────
-METAL       = "#94A3B8"
-METAL_DARK  = "#475569"
-METAL_DEEP  = "#1E293B"
-METAL_LIGHT = "#CBD5E1"
-GOLD        = "#D97706"
-GOLD_LIGHT  = "#FBBF24"
+SVG_MONEY = """<svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect x="2" y="6" width="20" height="13" rx="2" stroke="#0A9396" stroke-width="1.8"/>
+  <circle cx="12" cy="12" r="3" stroke="#0A9396" stroke-width="1.8"/>
+  <path d="M6 9v6M18 9v6" stroke="#0A9396" stroke-width="1.8" stroke-linecap="round"/>
+</svg>"""
 
-STATE_COLORS = {
-    "Jalisco":          "#60A5FA",
-    "Guanajuato":       "#818CF8",
-    "Querétaro":        "#34D399",
-    "San Luis Potosí":  "#FBBF24",
-    "Aguascalientes":   "#F472B6",
-}
+SVG_FACTORY = """<svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <path d="M2 20V8l6 4V8l6 4V6h8v14H2z" stroke="#6B7EBF" stroke-width="1.8" stroke-linejoin="round"/>
+  <rect x="14" y="14" width="3" height="6" rx="0.5" stroke="#6B7EBF" stroke-width="1.5"/>
+  <rect x="5" y="14" width="3" height="4" rx="0.5" stroke="#6B7EBF" stroke-width="1.5"/>
+</svg>"""
 
-STATE_GRADIENT = {
-    "Jalisco":          ("#1D4ED8", "#60A5FA", "rgba(96,165,250,0.45)"),
-    "Guanajuato":       ("#4338CA", "#818CF8", "rgba(129,140,248,0.45)"),
-    "Querétaro":        ("#047857", "#34D399", "rgba(52,211,153,0.45)"),
-    "San Luis Potosí":  ("#92400E", "#FBBF24", "rgba(251,191,36,0.45)"),
-    "Aguascalientes":   ("#9D174D", "#F472B6", "rgba(244,114,182,0.45)"),
-}
+SVG_BANK = """<svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <path d="M3 10l9-7 9 7" stroke="#A78BFA" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="3" y="18" width="18" height="3" rx="1" stroke="#A78BFA" stroke-width="1.5"/>
+  <line x1="6" y1="10" x2="6" y2="18" stroke="#A78BFA" stroke-width="1.8"/>
+  <line x1="10" y1="10" x2="10" y2="18" stroke="#A78BFA" stroke-width="1.8"/>
+  <line x1="14" y1="10" x2="14" y2="18" stroke="#A78BFA" stroke-width="1.8"/>
+  <line x1="18" y1="10" x2="18" y2="18" stroke="#A78BFA" stroke-width="1.8"/>
+</svg>"""
 
-METAL_SCALE = [
-    [0.0,  "#0F172A"],
-    [0.25, "#1E3A5F"],
-    [0.55, "#2563EB"],
-    [0.80, "#60A5FA"],
-    [1.0,  "#BFDBFE"],
-]
+SVG_TREND_DOWN = """<svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <path d="M3 6l6 8 4-4 8 8" stroke="#EE6C4D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M15 18h6v-6" stroke="#EE6C4D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>"""
 
+SVG_TABLE = """<svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect x="3" y="3" width="18" height="18" rx="2" stroke="#0A9396" stroke-width="1.8"/>
+  <line x1="3" y1="9" x2="21" y2="9" stroke="#0A9396" stroke-width="1.5"/>
+  <line x1="3" y1="15" x2="21" y2="15" stroke="#0A9396" stroke-width="1.5"/>
+  <line x1="9" y1="9" x2="9" y2="21" stroke="#0A9396" stroke-width="1.5"/>
+</svg>"""
 
-# ─────────────────────────────────────────────────────────────────────
-# CSS — Tema Metálico Oscuro
-# ─────────────────────────────────────────────────────────────────────
+SVG_GLOBE = """<svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.8"/>
+  <path d="M12 3c-2 3-3 5.5-3 9s1 6 3 9M12 3c2 3 3 5.5 3 9s-1 6-3 9" stroke="currentColor" stroke-width="1.5"/>
+  <line x1="3" y1="12" x2="21" y2="12" stroke="currentColor" stroke-width="1.5"/>
+  <path d="M4.5 7.5h15M4.5 16.5h15" stroke="currentColor" stroke-width="1.2"/>
+</svg>"""
+
+# ── CSS ───────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap');
 
-/* ── BASE ──────────────────────────────────────────────────────── */
-html, body, [class*="css"] {
-    font-family: 'Inter', sans-serif !important;
-    color: #CBD5E1 !important;
-}
-#MainMenu, footer { visibility: hidden; }
-.stDeployButton { display: none !important; }
-[data-testid="stToolbar"] { display: none; }
+* { box-sizing: border-box; }
 
-/* ── FONDO ─────────────────────────────────────────────────────── */
 .stApp {
-    background: #080E1A !important;
-    background-image:
-        radial-gradient(ellipse 70% 40% at 15% 10%, rgba(96,165,250,0.04) 0%, transparent 60%),
-        radial-gradient(ellipse 50% 35% at 88% 88%, rgba(217,119,6,0.05) 0%, transparent 55%) !important;
+    background: linear-gradient(135deg, #060d1a 0%, #0a1628 40%, #0d1f3c 70%, #071220 100%);
+    font-family: 'Space Grotesk', sans-serif;
 }
 
-/* ── SIDEBAR ───────────────────────────────────────────────────── */
-[data-testid="stSidebar"] {
-    background: linear-gradient(180deg, #0A1424 0%, #0D1E35 100%) !important;
-    border-right: 1px solid rgba(148,163,184,0.1) !important;
-    box-shadow: 4px 0 32px rgba(0,0,0,0.5) !important;
-}
-[data-testid="stSidebar"] label p,
-[data-testid="stSidebar"] .stMarkdown p {
-    color: #475569 !important;
-    font-size: 0.72rem; letter-spacing: 0.12em; text-transform: uppercase;
-}
-
-/* ── MÉTRICAS ──────────────────────────────────────────────────── */
-[data-testid="stMetric"] {
-    background: linear-gradient(145deg, #0F1E30 0%, #152840 60%, #0F1E30 100%) !important;
-    border: 1px solid rgba(148,163,184,0.1) !important;
-    border-radius: 16px !important;
-    padding: 18px 20px !important;
-    position: relative; overflow: hidden;
-    box-shadow: 0 4px 24px rgba(0,0,0,0.4),
-                inset 0 1px 0 rgba(255,255,255,0.05),
-                inset 0 -1px 0 rgba(0,0,0,0.2) !important;
-    transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1) !important;
-}
-[data-testid="stMetric"]::before {
+/* Animated mesh background */
+.stApp::before {
     content: '';
-    position: absolute; top: 0; left: 0; right: 0; height: 2px;
-    background: linear-gradient(90deg,
-        transparent 0%, #334155 15%, #64748B 30%,
-        #94A3B8 45%, #CBD5E1 50%,
-        #94A3B8 55%, #64748B 70%, #334155 85%, transparent 100%);
-    background-size: 200% auto;
-    animation: chrome-slide 4s linear infinite;
-    border-radius: 16px 16px 0 0;
-}
-[data-testid="stMetric"]::after {
-    content: '';
-    position: absolute; top: -20%; left: -60%; width: 40%; height: 140%;
-    background: linear-gradient(105deg, transparent 40%, rgba(255,255,255,0.03) 50%, transparent 60%);
-    animation: card-sheen 6s ease-in-out infinite;
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background:
+        radial-gradient(ellipse 80% 50% at 20% 20%, rgba(10,147,150,0.08) 0%, transparent 60%),
+        radial-gradient(ellipse 60% 40% at 80% 80%, rgba(238,108,77,0.06) 0%, transparent 60%),
+        radial-gradient(ellipse 50% 60% at 50% 50%, rgba(107,126,191,0.04) 0%, transparent 70%);
     pointer-events: none;
+    z-index: 0;
+    animation: meshShift 12s ease-in-out infinite alternate;
 }
-[data-testid="stMetric"]:hover {
-    border-color: rgba(148,163,184,0.28) !important;
-    box-shadow: 0 10px 40px rgba(0,0,0,0.5),
-                0 0 0 1px rgba(203,213,225,0.08),
-                inset 0 1px 0 rgba(255,255,255,0.08) !important;
-    transform: translateY(-3px) !important;
-}
-[data-testid="stMetricLabel"] p {
-    color: #475569 !important;
-    font-size: 0.67rem !important;
-    letter-spacing: 0.14em; text-transform: uppercase; font-weight: 600;
-}
-[data-testid="stMetricValue"] {
-    color: #CBD5E1 !important;
-    font-size: 1.5rem !important; font-weight: 700;
-    font-family: 'Space Grotesk', sans-serif !important;
-}
-[data-testid="stMetricDelta"] { color: #334155 !important; font-size: 0.7rem !important; }
 
-/* ── TABS ──────────────────────────────────────────────────────── */
-.stTabs [data-baseweb="tab-list"] {
-    background: linear-gradient(135deg, rgba(10,20,36,0.95), rgba(15,30,50,0.95));
-    border-radius: 14px; padding: 5px; gap: 4px;
-    border: 1px solid rgba(148,163,184,0.1);
-    box-shadow: inset 0 1px 0 rgba(255,255,255,0.03), 0 4px 20px rgba(0,0,0,0.35);
+@keyframes meshShift {
+    0%   { opacity: 0.6; transform: scale(1) rotate(0deg); }
+    50%  { opacity: 1;   transform: scale(1.05) rotate(1deg); }
+    100% { opacity: 0.7; transform: scale(0.98) rotate(-1deg); }
 }
-.stTabs [data-baseweb="tab"] {
-    color: #475569;
-    border-radius: 10px; font-size: 0.82rem; font-weight: 500;
-    padding: 8px 18px; letter-spacing: 0.03em;
-    transition: all 0.25s ease; border: 1px solid transparent;
-}
-.stTabs [data-baseweb="tab"]:hover {
-    color: #94A3B8; background: rgba(148,163,184,0.07);
-    border-color: rgba(148,163,184,0.1);
-}
-.stTabs [aria-selected="true"] {
-    background: linear-gradient(135deg, #1a2f50 0%, #243d68 50%, #1a2f50 100%) !important;
-    color: #CBD5E1 !important;
-    border: 1px solid rgba(148,163,184,0.18) !important;
-    box-shadow: 0 2px 14px rgba(0,0,0,0.45),
-                inset 0 1px 0 rgba(255,255,255,0.07) !important;
-}
-.stTabs [data-baseweb="tab-panel"] { padding: 20px 0 0 0; }
 
-/* ── BOTONES ───────────────────────────────────────────────────── */
-.stButton > button {
+/* Main header */
+.dash-header {
     background: linear-gradient(135deg,
-        #1E293B 0%, #263548 25%, #334155 50%,
-        #263548 75%, #1E293B 100%) !important;
-    background-size: 200% 100% !important;
-    color: #CBD5E1 !important;
-    border: 1px solid rgba(148,163,184,0.2) !important;
-    border-radius: 10px !important; font-weight: 600 !important;
-    font-size: 0.82rem !important; letter-spacing: 0.06em !important;
-    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1) !important;
-    box-shadow: 0 4px 16px rgba(0,0,0,0.35),
-                inset 0 1px 0 rgba(255,255,255,0.06) !important;
-}
-.stButton > button:hover {
-    background-position: right center !important;
-    color: #E2E8F0 !important;
-    border-color: rgba(203,213,225,0.3) !important;
-    box-shadow: 0 6px 28px rgba(0,0,0,0.45),
-                inset 0 1px 0 rgba(255,255,255,0.1) !important;
-    transform: translateY(-2px) !important;
+        rgba(10,147,150,0.15) 0%,
+        rgba(107,126,191,0.08) 50%,
+        rgba(238,108,77,0.08) 100%);
+    border: 1px solid rgba(10,147,150,0.25);
+    border-radius: 16px;
+    padding: 24px 32px;
+    margin-bottom: 24px;
+    position: relative;
+    overflow: hidden;
+    animation: fadeSlideDown 0.6s ease-out;
 }
 
-/* ── SELECTBOX ─────────────────────────────────────────────────── */
-[data-baseweb="select"] > div {
-    background: linear-gradient(135deg, #0F1923, #152030) !important;
-    border: 1px solid rgba(148,163,184,0.15) !important;
-    border-radius: 10px !important;
-    transition: border-color 0.25s, box-shadow 0.25s;
-}
-[data-baseweb="select"] > div:hover {
-    border-color: rgba(148,163,184,0.3) !important;
-    box-shadow: 0 0 0 3px rgba(100,116,139,0.1) !important;
-}
-[data-baseweb="select"] span { color: #94A3B8 !important; font-size: 0.88rem; }
-
-/* ── DATAFRAME ─────────────────────────────────────────────────── */
-[data-testid="stDataFrame"] {
-    border: 1px solid rgba(148,163,184,0.12) !important;
-    border-radius: 16px !important; overflow: hidden;
-    box-shadow: 0 4px 32px rgba(0,0,0,0.4),
-                inset 0 1px 0 rgba(255,255,255,0.03);
-    background: linear-gradient(145deg, #0F1E30, #0A1525) !important;
-    transition: box-shadow 0.3s ease;
-}
-[data-testid="stDataFrame"]:hover {
-    box-shadow: 0 6px 40px rgba(0,0,0,0.5) !important;
+.dash-header::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0; height: 2px;
+    background: linear-gradient(90deg, transparent, #0A9396, #6B7EBF, #EE6C4D, transparent);
+    animation: shimmer 3s ease-in-out infinite;
 }
 
-/* ── CHECKBOX ──────────────────────────────────────────────────── */
-[data-baseweb="checkbox"] span {
-    background: rgba(15,25,35,0.9) !important;
-    border: 1.5px solid rgba(148,163,184,0.25) !important;
-    border-radius: 4px !important; transition: border-color 0.2s;
-}
-
-/* ── DOWNLOAD ──────────────────────────────────────────────────── */
-[data-testid="stDownloadButton"] > button {
-    background: linear-gradient(135deg, #0F1923, #152030) !important;
-    color: #64748B !important;
-    border: 1.5px solid rgba(148,163,184,0.18) !important;
-    border-radius: 10px !important; font-weight: 600 !important;
-    transition: all 0.25s ease !important;
-}
-[data-testid="stDownloadButton"] > button:hover {
-    background: linear-gradient(135deg, #152030, #1E2F48) !important;
-    color: #CBD5E1 !important;
-    border-color: rgba(148,163,184,0.35) !important;
-    box-shadow: 0 4px 18px rgba(0,0,0,0.35) !important;
-}
-
-/* ── DIVISOR ───────────────────────────────────────────────────── */
-hr {
-    border: none !important; height: 1px !important;
-    background: linear-gradient(90deg,
-        transparent,
-        rgba(71,85,105,0.5) 30%, rgba(148,163,184,0.3) 50%,
-        rgba(71,85,105,0.5) 70%, transparent) !important;
-    margin: 1.4rem 0 !important;
-}
-
-/* ── ALERTS ────────────────────────────────────────────────────── */
-[data-testid="stAlert"] {
-    background: rgba(10,16,28,0.85) !important;
-    border: 1px solid rgba(148,163,184,0.15) !important;
-    border-radius: 12px !important;
-}
-[data-testid="stAlertContainer"] p { color: #94A3B8 !important; }
-
-/* ── CODE ──────────────────────────────────────────────────────── */
-code {
-    background: rgba(10,16,28,0.9) !important;
-    color: #94A3B8 !important; border-radius: 5px; padding: 2px 7px;
-    border: 1px solid rgba(148,163,184,0.1);
-}
-[data-testid="stCode"] {
-    background: rgba(8,14,26,0.97) !important;
-    border: 1px solid rgba(148,163,184,0.1) !important;
-    border-radius: 12px !important;
-    box-shadow: inset 0 2px 10px rgba(0,0,0,0.3);
-}
-
-/* ── TIPOGRAFÍA ────────────────────────────────────────────────── */
-h2, h3 {
-    color: #CBD5E1 !important;
-    font-family: 'Space Grotesk', sans-serif !important;
-    font-weight: 600 !important; letter-spacing: -0.01em;
-}
-p, li  { color: #64748B !important; }
-.stCaption p { color: #334155 !important; font-size: 0.74rem !important; }
-
-/* ── NOTIFICACIONES ────────────────────────────────────────────── */
-[data-baseweb="notification"] {
-    background: rgba(5,20,12,0.75) !important;
-    border: 1px solid rgba(22,163,74,0.22) !important; border-radius: 10px !important;
-}
-[data-testid="stSidebar"] [data-baseweb="notification"] p { color: #4ADE80 !important; }
-
-/* ── JSON ──────────────────────────────────────────────────────── */
-[data-testid="stJson"] {
-    background: rgba(8,14,26,0.97) !important;
-    border: 1px solid rgba(148,163,184,0.1) !important; border-radius: 12px !important;
-}
-
-/* ── KEYFRAMES ─────────────────────────────────────────────────── */
-@keyframes chrome-slide {
-    0%   { background-position: 200% center; }
-    100% { background-position: -200% center; }
-}
-@keyframes card-sheen {
-    0%   { left: -60%; opacity: 0; }
-    15%  { opacity: 1; }
-    85%  { opacity: 1; }
-    100% { left: 120%; opacity: 0; }
-}
-@keyframes txt-shine {
-    0%   { background-position: 0% center; }
+@keyframes shimmer {
+    0%   { background-position: -200% center; }
     100% { background-position: 200% center; }
+}
+
+@keyframes fadeSlideDown {
+    from { opacity: 0; transform: translateY(-16px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+.dash-title {
+    font-size: 26px;
+    font-weight: 700;
+    background: linear-gradient(135deg, #e8f4f5 0%, #0A9396 50%, #6B7EBF 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin: 0 0 6px 0;
+    letter-spacing: -0.5px;
+}
+
+.dash-sub {
+    font-size: 13px;
+    color: rgba(200,220,230,0.6);
+    font-weight: 400;
+    font-family: 'JetBrains Mono', monospace;
+    letter-spacing: 0.3px;
+}
+
+/* KPI Cards */
+.kpi-card {
+    background: linear-gradient(135deg,
+        rgba(255,255,255,0.04) 0%,
+        rgba(255,255,255,0.02) 100%);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 14px;
+    padding: 18px 20px;
+    position: relative;
+    overflow: hidden;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    animation: fadeSlideUp 0.5s ease-out both;
+}
+
+.kpi-card:hover {
+    transform: translateY(-3px);
+    border-color: rgba(10,147,150,0.4);
+    box-shadow: 0 8px 32px rgba(10,147,150,0.15);
+}
+
+.kpi-card::after {
+    content: '';
+    position: absolute;
+    bottom: 0; left: 0; right: 0; height: 2px;
+    background: var(--accent, linear-gradient(90deg, #0A9396, #6B7EBF));
+    border-radius: 0 0 14px 14px;
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform 0.4s ease;
+}
+
+.kpi-card:hover::after { transform: scaleX(1); }
+
+@keyframes fadeSlideUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+.kpi-label {
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    color: rgba(180,210,220,0.5);
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.kpi-value {
+    font-size: 30px;
+    font-weight: 700;
+    font-family: 'JetBrains Mono', monospace;
+    color: #e8f4f5;
+    line-height: 1;
+    margin-bottom: 6px;
+    letter-spacing: -1px;
+}
+
+.kpi-delta-pos {
+    font-size: 12px;
+    color: #4ade80;
+    font-family: 'JetBrains Mono', monospace;
+    display: flex; align-items: center; gap: 3px;
+}
+.kpi-delta-neg {
+    font-size: 12px;
+    color: #f87171;
+    font-family: 'JetBrains Mono', monospace;
+    display: flex; align-items: center; gap: 3px;
+}
+
+.badge {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    padding: 3px 10px;
+    border-radius: 20px;
+    margin-top: 4px;
+}
+.badge-alto    { background: rgba(74,222,128,0.15); color: #4ade80; border: 1px solid rgba(74,222,128,0.3); }
+.badge-medio   { background: rgba(250,204,21,0.15); color: #facc15; border: 1px solid rgba(250,204,21,0.3); }
+.badge-bajo    { background: rgba(248,113,113,0.15); color: #f87171; border: 1px solid rgba(248,113,113,0.3); }
+
+/* Section headers */
+.section-hdr {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 24px 0 14px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.section-hdr-text {
+    font-size: 14px;
+    font-weight: 600;
+    color: rgba(200,230,240,0.85);
+    letter-spacing: 0.2px;
+}
+
+/* Sidebar */
+section[data-testid="stSidebar"] {
+    background: linear-gradient(180deg, #080f1e 0%, #0a1628 100%);
+    border-right: 1px solid rgba(10,147,150,0.15);
+}
+
+section[data-testid="stSidebar"] .stMarkdown p {
+    color: rgba(180,210,220,0.7);
+    font-size: 13px;
+}
+
+.sidebar-logo {
+    background: linear-gradient(135deg, rgba(10,147,150,0.12), rgba(107,126,191,0.08));
+    border: 1px solid rgba(10,147,150,0.2);
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 20px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+}
+.sidebar-logo::before {
+    content: '';
+    position: absolute;
+    top: -50%; left: -50%; width: 200%; height: 200%;
+    background: conic-gradient(from 0deg, transparent 70%, rgba(10,147,150,0.1) 100%);
+    animation: rotateBg 8s linear infinite;
+}
+@keyframes rotateBg {
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(360deg); }
+}
+.sidebar-logo-title {
+    font-size: 18px;
+    font-weight: 700;
+    background: linear-gradient(135deg, #0A9396, #6B7EBF);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    position: relative;
+    z-index: 1;
+}
+.sidebar-logo-sub {
+    font-size: 10px;
+    color: rgba(180,210,220,0.4);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    position: relative;
+    z-index: 1;
+    margin-top: 4px;
+    font-family: 'JetBrains Mono', monospace;
+}
+
+.weight-pill {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 7px 12px;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 8px;
+    margin-bottom: 6px;
+    transition: all 0.2s ease;
+}
+.weight-pill:hover {
+    background: rgba(10,147,150,0.08);
+    border-color: rgba(10,147,150,0.2);
+}
+.weight-name { font-size: 12px; color: rgba(200,220,230,0.7); }
+.weight-val  { font-size: 12px; font-weight: 700; color: #0A9396; font-family: 'JetBrains Mono', monospace; }
+
+/* Divider */
+.grad-divider {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(10,147,150,0.3), rgba(107,126,191,0.2), transparent);
+    margin: 20px 0;
+}
+
+/* Metrics override */
+div[data-testid="stMetric"] {
+    background: transparent !important;
+    padding: 0 !important;
+}
+
+/* Plotly charts dark bg */
+.js-plotly-plot { border-radius: 12px; }
+
+/* Animated counter */
+@keyframes countUp {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+.animated-val {
+    animation: countUp 0.5s ease-out both;
 }
 </style>
 """, unsafe_allow_html=True)
 
 
-# ─────────────────────────────────────────────────────────────────────
-# HELPERS
-# ─────────────────────────────────────────────────────────────────────
+# ── Datos ─────────────────────────────────────────────────────────────
+@st.cache_data
+def cargar_datos():
+    panel = pd.read_csv("panel_bajio.csv")
+    def minmax(s):     return (s - s.min()) / (s.max() - s.min())
+    def minmax_inv(s): return 1 - minmax(s)
+    panel["norm_ied"]           = minmax(panel["ied_usd"])
+    panel["norm_exportaciones"] = minmax(panel["exportaciones_usd"])
+    panel["norm_manufactura"]   = minmax(panel["personal_ocupado"])
+    panel["norm_credito"]       = minmax(panel["credito_pesos"])
+    panel["norm_inpc"]          = minmax_inv(panel["inpc_general"])
+    panel["ICAI"] = (
+        panel["norm_ied"]           * 0.25 +
+        panel["norm_exportaciones"] * 0.25 +
+        panel["norm_manufactura"]   * 0.25 +
+        panel["norm_credito"]       * 0.15 +
+        panel["norm_inpc"]          * 0.10
+    ) * 100
+    panel["ICAI"] = panel["ICAI"].round(2)
+    return panel
 
-@st.cache_data(ttl=60)
-def api_get(endpoint: str, **params) -> dict:
-    clean = {k: v for k, v in params.items() if v is not None}
-    r = requests.get(f"{BASE_URL}{endpoint}", params=clean or None, timeout=5)
-    r.raise_for_status()
-    return r.json()
+panel = cargar_datos()
+ESTADOS = sorted(panel["entidad"].unique().tolist())
+ANIOS   = sorted(panel["anio"].unique().tolist())
 
+COLORES = {
+    "San Luis Potosi": "#0A9396", "San Luis Potosí": "#0A9396",
+    "Jalisco":         "#EE6C4D",
+    "Guanajuato":      "#F4A261",
+    "Queretaro":       "#6B7EBF", "Querétaro": "#6B7EBF",
+    "Aguascalientes":  "#A78BFA",
+}
+def get_color(e): return COLORES.get(e, "#888")
 
-def check_api() -> bool:
-    try:
-        requests.get(f"{BASE_URL}/", timeout=2)
-        return True
-    except requests.exceptions.ConnectionError:
-        return False
+def nivel_icai(v):
+    if v >= 40: return "Medio-Alto", "badge-alto"
+    if v >= 20: return "Intermedio", "badge-medio"
+    return "Bajo", "badge-bajo"
 
-
-def hex_rgba(hex_color: str, alpha: float = 0.08) -> str:
-    h = hex_color.lstrip("#")
-    r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
-    return f"rgba({r},{g},{b},{alpha})"
-
-
-def chart_layout(height: int = 400, title: str = "") -> dict:
-    _axis = dict(
-        gridcolor="rgba(71,85,105,0.18)",
-        linecolor="rgba(71,85,105,0.22)",
-        tickcolor="rgba(71,85,105,0.28)",
-        tickfont=dict(color="#475569", size=11),
-        title_font=dict(color="#64748B"),
-        zeroline=False,
-    )
-    return dict(
+def plot_cfg(fig, h=320):
+    fig.update_layout(
+        height=h,
+        margin=dict(l=0, r=0, t=10, b=0),
         paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(8,14,26,0.65)",
-        font=dict(color="#64748B", family="Inter, sans-serif", size=12),
-        height=height,
-        margin=dict(l=12, r=12, t=46 if title else 18, b=12),
-        title=dict(
-            text=title,
-            font=dict(color="#94A3B8", size=13, family="Space Grotesk"),
-            x=0.02, xanchor="left",
-        ),
+        plot_bgcolor="rgba(255,255,255,0.02)",
+        font=dict(family="Space Grotesk, sans-serif", color="rgba(200,220,230,0.75)", size=11),
         legend=dict(
-            bgcolor="rgba(8,14,26,0.88)",
-            bordercolor="rgba(71,85,105,0.2)",
-            borderwidth=1,
-            font=dict(color="#64748B", size=11),
+            orientation="h", yanchor="bottom", y=1.02,
+            bgcolor="rgba(0,0,0,0)",
+            font=dict(size=10, color="rgba(200,220,230,0.7)")
         ),
-        hoverlabel=dict(
-            bgcolor="rgba(8,14,26,0.97)",
-            bordercolor="rgba(148,163,184,0.3)",
-            font=dict(color="#CBD5E1", size=12),
-        ),
-        xaxis=_axis.copy(),
-        yaxis=_axis.copy(),
+        xaxis=dict(gridcolor="rgba(255,255,255,0.04)", linecolor="rgba(255,255,255,0.08)", title_font=dict(size=11)),
+        yaxis=dict(gridcolor="rgba(255,255,255,0.04)", linecolor="rgba(255,255,255,0.08)", title_font=dict(size=11)),
     )
+    return fig
 
 
-# ─────────────────────────────────────────────────────────────────────
-# CONNECTION CHECK
-# ─────────────────────────────────────────────────────────────────────
-if not check_api():
-    st.error("La API no responde. Ejecuta: `uvicorn main:app --reload`")
-    st.stop()
-
-info    = api_get("/")
-ESTADOS = info["estados_disponibles"]
-ANIOS   = list(range(2018, 2026))
-
-
-# ─────────────────────────────────────────────────────────────────────
-# SIDEBAR
-# ─────────────────────────────────────────────────────────────────────
+# ── Sidebar ───────────────────────────────────────────────────────────
 with st.sidebar:
-    st.markdown(f"""
-    <div style="display:flex;align-items:center;gap:9px;margin-bottom:3px;">
-      <span style="color:#94A3B8;flex-shrink:0;">{ico("trophy","#94A3B8",18)}</span>
-      <span style="font-family:Space Grotesk,sans-serif;font-size:1.05rem;font-weight:700;
-        background:linear-gradient(90deg,#475569,#64748B,#94A3B8,#CBD5E1,#94A3B8,#64748B,#475569);
-        background-size:200% auto;-webkit-background-clip:text;-webkit-text-fill-color:transparent;
-        animation:txt-shine 4s linear infinite;">
-        ICAI · BAJÍO
-      </span>
+    st.markdown("""
+    <div class="sidebar-logo">
+        <div class="sidebar-logo-title">ICAI</div>
+        <div class="sidebar-logo-sub">Corredor del Bajío · 2018–2025</div>
     </div>
     """, unsafe_allow_html=True)
-    st.caption("Corredor industrial · 2018–2025")
-    st.divider()
 
-    st.markdown("**FILTROS**")
-    estado_sel = st.selectbox("Estado", ["Todos"] + ESTADOS, label_visibility="collapsed")
-    anio_sel   = st.selectbox("Año",    ["Todos"] + ANIOS,   label_visibility="collapsed")
+    estado_sel = st.selectbox("Estado de enfoque", ESTADOS,
+        index=ESTADOS.index("San Luis Potosí") if "San Luis Potosí" in ESTADOS else 0)
 
-    st.divider()
-    st.markdown("**CONEXIÓN**")
-    st.success(f"API activa — v{info['version']}")
-    st.caption(BASE_URL)
-    if st.button("Refrescar datos", width="stretch"):
-        st.cache_data.clear()
-        st.rerun()
+    anio_rango = st.slider("Rango de años",
+        min_value=min(ANIOS), max_value=max(ANIOS),
+        value=(min(ANIOS), max(ANIOS)))
+
+    st.markdown('<div class="grad-divider"></div>', unsafe_allow_html=True)
+
+    st.markdown('<div style="font-size:11px;font-weight:600;letter-spacing:0.8px;text-transform:uppercase;color:rgba(180,210,220,0.4);margin-bottom:10px;">Ponderaciones ICAI</div>', unsafe_allow_html=True)
+
+    pesos_sidebar = [
+        ("IED", "25%"), ("Exportaciones", "25%"), ("Manufactura", "25%"),
+        ("Crédito", "15%"), ("INPC", "10%")
+    ]
+    for nombre, pct in pesos_sidebar:
+        st.markdown(f"""
+        <div class="weight-pill">
+            <span class="weight-name">{nombre}</span>
+            <span class="weight-val">{pct}</span>
+        </div>""", unsafe_allow_html=True)
+
+    st.markdown('<div class="grad-divider"></div>', unsafe_allow_html=True)
+    st.markdown('<div style="font-size:10px;color:rgba(180,210,220,0.3);line-height:1.6;font-family:JetBrains Mono,monospace;">SE · INEGI · CNBV · Banxico<br>Equipo 11 · Análisis de Datos</div>', unsafe_allow_html=True)
 
 
-# ─────────────────────────────────────────────────────────────────────
-# HERO — Metálico oscuro
-# ─────────────────────────────────────────────────────────────────────
-st.html("""
-<style>
-@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;600;700&family=Inter:wght@300;400&display=swap');
+# ── Filtros ───────────────────────────────────────────────────────────
+panel_filt   = panel[(panel["anio"] >= anio_rango[0]) & (panel["anio"] <= anio_rango[1])]
+datos_estado = panel_filt[panel_filt["entidad"] == estado_sel]
+icai_prom    = datos_estado["ICAI"].mean()
+icai_last    = datos_estado[datos_estado["anio"] == datos_estado["anio"].max()]["ICAI"].values
+icai_prev    = datos_estado[datos_estado["anio"] == datos_estado["anio"].max() - 1]["ICAI"].values
+icai_best    = datos_estado["ICAI"].max()
+anio_best    = datos_estado[datos_estado["ICAI"] == icai_best]["anio"].values[0]
+ranking      = panel_filt.groupby("entidad")["ICAI"].mean().sort_values(ascending=False).reset_index()
+ranking.columns = ["entidad", "ICAI_prom"]
+pos          = ranking[ranking["entidad"] == estado_sel].index[0] + 1
+nivel, badge = nivel_icai(icai_prom)
+delta_last   = float(icai_last[0] - icai_prev[0]) if len(icai_last) > 0 and len(icai_prev) > 0 else 0.0
+diferencia   = icai_prom - ranking["ICAI_prom"].mean()
 
-.hero-wrap {
-    position:relative; width:100%; height:185px; overflow:hidden;
-    display:flex; flex-direction:column; justify-content:center; padding:0 28px;
-    background: linear-gradient(135deg, #080E1A 0%, #0D1B2A 35%, #111E32 65%, #0A1220 100%);
-    border: 1px solid rgba(148,163,184,0.1); border-radius: 18px;
-    box-shadow: 0 8px 48px rgba(0,0,0,0.55),
-                inset 0 1px 0 rgba(255,255,255,0.04),
-                inset 0 -1px 0 rgba(0,0,0,0.3);
-}
-.hero-wrap::before {
-    content:''; position:absolute; top:0; left:0; right:0; height:1px;
-    background: linear-gradient(90deg,
-        transparent 0%, #1E293B 10%, #334155 25%, #64748B 40%,
-        #94A3B8 50%, #64748B 60%, #334155 75%, #1E293B 90%, transparent 100%);
-    background-size:200% auto; animation:hero-chrome 6s linear infinite;
-}
-@keyframes hero-chrome { 0%{background-position:200% center} 100%{background-position:-200% center} }
 
-.dot-grid {
-    position:absolute; right:0; top:0; width:50%; height:100%;
-    background-image: radial-gradient(circle, rgba(148,163,184,0.1) 1px, transparent 1px);
-    background-size: 24px 24px;
-    -webkit-mask-image: linear-gradient(to left, rgba(0,0,0,0.25), transparent);
-    mask-image: linear-gradient(to left, rgba(0,0,0,0.25), transparent);
-}
-.scan-line {
-    position:absolute; left:0; right:0; height:1px;
-    background: linear-gradient(90deg, transparent 0%, rgba(71,85,105,0.3) 20%,
-        rgba(203,213,225,0.75) 50%, rgba(71,85,105,0.3) 80%, transparent 100%);
-    top:0; pointer-events:none; animation: scan-down 7s ease-in-out infinite;
-}
-@keyframes scan-down { 0%{top:0;opacity:0} 5%{opacity:1} 93%{opacity:0.7} 100%{top:100%;opacity:0} }
-
-.orb { position:absolute; border-radius:50%; filter:blur(65px); pointer-events:none; }
-.o1  { width:320px;height:320px; background:radial-gradient(circle,rgba(96,165,250,0.055),transparent 70%);  top:-150px;right:30px;   animation:fl1 12s ease-in-out infinite; }
-.o2  { width:200px;height:200px; background:radial-gradient(circle,rgba(148,163,184,0.04),transparent 70%);  top:-70px;right:370px;   animation:fl2 16s ease-in-out infinite; }
-.o3  { width:160px;height:160px; background:radial-gradient(circle,rgba(217,119,6,0.055),transparent 70%);   bottom:-65px;right:190px; animation:fl3 10s ease-in-out infinite; }
-.o4  { width:90px;height:90px;   background:radial-gradient(circle,rgba(129,140,248,0.04),transparent 70%);  bottom:15px;left:220px;  animation:fl2 11s ease-in-out infinite reverse; }
-@keyframes fl1 { 0%,100%{transform:translate(0,0) scale(1)}   50%{transform:translate(-18px,-20px) scale(1.06)} }
-@keyframes fl2 { 0%,100%{transform:translate(0,0) scale(1)}   50%{transform:translate(12px,-12px) scale(0.94)} }
-@keyframes fl3 { 0%,100%{transform:translate(0,0)}            50%{transform:translate(-8px,12px)} }
-
-.corn { position:absolute; width:18px; height:18px; }
-.tl { top:6px;left:6px;    border-top:1.5px solid rgba(148,163,184,0.22); border-left:1.5px solid rgba(148,163,184,0.22); }
-.tr { top:6px;right:6px;   border-top:1.5px solid rgba(148,163,184,0.22); border-right:1.5px solid rgba(148,163,184,0.22); }
-.bl { bottom:6px;left:6px;  border-bottom:1.5px solid rgba(148,163,184,0.22); border-left:1.5px solid rgba(148,163,184,0.22); }
-.br { bottom:6px;right:6px; border-bottom:1.5px solid rgba(148,163,184,0.22); border-right:1.5px solid rgba(148,163,184,0.22); }
-
-.hero-title {
-    font-family:'Space Grotesk',sans-serif;
-    font-size:clamp(1.5rem,3vw,2.25rem); font-weight:700; line-height:1.1;
-    background: linear-gradient(90deg,
-        #334155 0%, #475569 10%, #64748B 22%, #94A3B8 35%,
-        #CBD5E1 46%, #E2E8F0 50%, #CBD5E1 54%,
-        #94A3B8 65%, #64748B 78%, #475569 90%, #334155 100%);
-    background-size:200% auto;
-    -webkit-background-clip:text; -webkit-text-fill-color:transparent;
-    animation:silver-shine 5s linear infinite; position:relative; z-index:2;
-}
-@keyframes silver-shine { to { background-position:200% center } }
-
-.hero-sub {
-    font-family:'Inter',sans-serif; font-size:0.74rem; color:#334155; margin-top:8px;
-    letter-spacing:0.2em; text-transform:uppercase; position:relative; z-index:2;
-}
-.badges { display:flex; gap:8px; margin-top:14px; position:relative; z-index:2; flex-wrap:wrap; }
-.badge {
-    display:inline-flex; align-items:center; gap:6px;
-    background: linear-gradient(135deg, rgba(12,20,35,0.9), rgba(18,30,50,0.9));
-    border: 1px solid rgba(148,163,184,0.14); border-radius:20px; padding:4px 12px;
-    font-family:'Inter',sans-serif; font-size:0.67rem; color:#475569;
-    letter-spacing:0.09em; white-space:nowrap;
-    box-shadow: inset 0 1px 0 rgba(255,255,255,0.04), 0 1px 4px rgba(0,0,0,0.3);
-}
-.live-dot {
-    width:5px;height:5px;border-radius:50%; background:#4ADE80;
-    box-shadow:0 0 7px rgba(74,222,128,0.65); animation:live-pulse 2s ease-in-out infinite;
-}
-.info-dot { width:5px;height:5px;border-radius:50%; background:#60A5FA; box-shadow:0 0 5px rgba(96,165,250,0.55); }
-@keyframes live-pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.3;transform:scale(0.65)} }
-</style>
-
-<div class="hero-wrap">
-  <div class="o1 orb"></div><div class="o2 orb"></div>
-  <div class="o3 orb"></div><div class="o4 orb"></div>
-  <div class="dot-grid"></div><div class="scan-line"></div>
-  <div class="corn tl"></div><div class="corn tr"></div>
-  <div class="corn bl"></div><div class="corn br"></div>
-  <div class="hero-title">Índice de Atractividad Industrial</div>
-  <div class="hero-sub">Corredor del Bajío &nbsp;·&nbsp; 2018 – 2025 &nbsp;·&nbsp; Equipo 11</div>
-  <div class="badges">
-    <span class="badge"><span class="live-dot"></span>API activa</span>
-    <span class="badge"><span class="info-dot"></span>5 estados</span>
-    <span class="badge"><span class="info-dot"></span>8 años</span>
-    <span class="badge"><span class="info-dot"></span>5 dimensiones</span>
-    <span class="badge"><span class="info-dot"></span>10 endpoints</span>
-  </div>
+# ── Header ────────────────────────────────────────────────────────────
+st.markdown(f"""
+<div class="dash-header">
+    <div class="dash-title">Índice Compuesto de Atractividad Industrial</div>
+    <div class="dash-sub">Corredor del Bajío &nbsp;·&nbsp; {estado_sel} &nbsp;·&nbsp; {anio_rango[0]}–{anio_rango[1]} &nbsp;·&nbsp; Metodología Min-Max + Ponderación Económica</div>
 </div>
-""")
+""", unsafe_allow_html=True)
 
 
-# ─────────────────────────────────────────────────────────────────────
-# MÉTRICAS RÁPIDAS
-# ─────────────────────────────────────────────────────────────────────
-ranking_data = api_get("/icai/ranking")
-df_rank      = pd.DataFrame(ranking_data["ranking"])
+# ── KPIs ──────────────────────────────────────────────────────────────
+k1, k2, k3, k4, k5 = st.columns(5)
 
-cols = st.columns(5)
-for col, row in zip(cols, df_rank.itertuples()):
-    col.metric(
-        label=f"0{row.posicion}  {row.estado}",
-        value=f"{row.ICAI_promedio:.1f}",
-        delta="pts ICAI",
-    )
+def kpi_delta_html(val, suffix=""):
+    color = "kpi-delta-pos" if val >= 0 else "kpi-delta-neg"
+    arrow = "▲" if val >= 0 else "▼"
+    return f'<div class="{color}">{arrow} {abs(val):.1f}{suffix}</div>'
 
-st.divider()
+with k1:
+    st.markdown(f"""
+    <div class="kpi-card" style="--accent: linear-gradient(90deg,#0A9396,#6B7EBF);">
+        <div class="kpi-label">{SVG_CHART} ICAI Promedio</div>
+        <div class="kpi-value animated-val">{icai_prom:.1f}</div>
+        <div style="font-size:10px;color:rgba(180,210,220,0.4);margin-bottom:4px;">pts / 100</div>
+        <span class="badge {badge}">{nivel}</span>
+    </div>""", unsafe_allow_html=True)
+
+with k2:
+    icai_last_str = f"{icai_last[0]:.1f}" if len(icai_last) > 0 else "N/D"
+    st.markdown(f"""
+    <div class="kpi-card" style="--accent: linear-gradient(90deg,#EE6C4D,#F4A261);">
+        <div class="kpi-label">{SVG_TREND_DOWN} ICAI {max(ANIOS)}</div>
+        <div class="kpi-value animated-val">{icai_last_str}</div>
+        <div style="font-size:10px;color:rgba(180,210,220,0.4);margin-bottom:4px;">pts / 100</div>
+        {kpi_delta_html(delta_last, ' vs ant.')}
+    </div>""", unsafe_allow_html=True)
+
+with k3:
+    st.markdown(f"""
+    <div class="kpi-card" style="--accent: linear-gradient(90deg,#6B7EBF,#A78BFA);">
+        <div class="kpi-label">{SVG_TROPHY} Posición</div>
+        <div class="kpi-value animated-val">{pos}°</div>
+        <div style="font-size:10px;color:rgba(180,210,220,0.4);margin-bottom:4px;">de {len(ESTADOS)} estados</div>
+        <div style="font-size:11px;color:rgba(180,210,220,0.5);">Ranking regional</div>
+    </div>""", unsafe_allow_html=True)
+
+with k4:
+    st.markdown(f"""
+    <div class="kpi-card" style="--accent: linear-gradient(90deg,#F4A261,#EE6C4D);">
+        <div class="kpi-label">{SVG_TARGET} Mejor Año</div>
+        <div class="kpi-value animated-val">{anio_best}</div>
+        <div style="font-size:10px;color:rgba(180,210,220,0.4);margin-bottom:4px;">&nbsp;</div>
+        <div class="kpi-delta-pos">▲ {icai_best:.1f} pts</div>
+    </div>""", unsafe_allow_html=True)
+
+with k5:
+    st.markdown(f"""
+    <div class="kpi-card" style="--accent: linear-gradient(90deg,#A78BFA,#6B7EBF);">
+        <div class="kpi-label">{SVG_GLOBE} vs. Corredor</div>
+        <div class="kpi-value animated-val">{icai_prom:.1f}</div>
+        <div style="font-size:10px;color:rgba(180,210,220,0.4);margin-bottom:4px;">pts</div>
+        {kpi_delta_html(diferencia, ' vs prom.')}
+    </div>""", unsafe_allow_html=True)
+
+st.markdown('<div class="grad-divider"></div>', unsafe_allow_html=True)
 
 
-# ─────────────────────────────────────────────────────────────────────
-# TABS
-# ─────────────────────────────────────────────────────────────────────
-t_rank, t_icai, t_perfil, t_dim, t_datos, t_api = st.tabs([
-    "  Ranking", "  ICAI", "  Perfil", "  Dimensiones", "  Datos", "  API",
-])
+# ── Evolución + Ranking ───────────────────────────────────────────────
+col1, col2 = st.columns([3, 2])
 
-
-# ══════════════════════════════════════════════════════════════════════
-# RANKING
-# ══════════════════════════════════════════════════════════════════════
-with t_rank:
-    st.subheader("Ranking ICAI promedio 2018–2025")
-    col_g, col_t = st.columns([1.5, 1])
-
-    with col_g:
-        fig = go.Figure(go.Bar(
-            x=df_rank["ICAI_promedio"], y=df_rank["estado"], orientation="h",
-            marker=dict(
-                color=df_rank["ICAI_promedio"], colorscale=METAL_SCALE,
-                line=dict(color="rgba(148,163,184,0.15)", width=1),
-            ),
-            text=[f"{v:.2f} pts" for v in df_rank["ICAI_promedio"]],
-            textposition="outside", textfont=dict(color="#64748B", size=12),
-            hovertemplate="<b>%{y}</b><br>ICAI: %{x:.2f} pts<extra></extra>",
+with col1:
+    st.markdown(f'<div class="section-hdr">{SVG_CHART}<span class="section-hdr-text">Evolución del ICAI por estado</span></div>', unsafe_allow_html=True)
+    fig_evol = go.Figure()
+    for e in ESTADOS:
+        de = panel_filt[panel_filt["entidad"] == e].sort_values("anio")
+        sel = (e == estado_sel)
+        fig_evol.add_trace(go.Scatter(
+            x=de["anio"], y=de["ICAI"].round(1), name=e,
+            mode="lines+markers",
+            line=dict(color=get_color(e), width=3 if sel else 1.2,
+                      dash="solid" if sel else "dot"),
+            marker=dict(size=8 if sel else 4,
+                        symbol="circle",
+                        line=dict(width=2 if sel else 0, color="white")),
+            opacity=1.0 if sel else 0.4,
+            hovertemplate=f"<b>{e}</b><br>%{{x}}: %{{y:.1f}} pts<extra></extra>"
         ))
-        fig.update_layout(**chart_layout(height=320, title="ICAI promedio del corredor"))
-        fig.update_yaxes(autorange="reversed")
-        fig.update_xaxes(range=[0, df_rank["ICAI_promedio"].max() * 1.22])
-        st.plotly_chart(fig, width="stretch")
-
-    with col_t:
-        bars_html = ""
-        for idx, row in df_rank.iterrows():
-            color        = STATE_COLORS.get(row["estado"], METAL)
-            c1, c2, glow = STATE_GRADIENT.get(row["estado"], ("#1E293B", "#94A3B8", "rgba(148,163,184,0.35)"))
-            pct          = row["ICAI_promedio"]
-            delay        = idx * 0.15
-            bars_html += f"""
-            <div class="bcard">
-              <div class="bheader">
-                <span class="brank">0{int(row['posicion'])}</span>
-                <span class="bname">{row['estado']}</span>
-                <span class="bval" style="color:{color};">{row['ICAI_promedio']:.2f}</span>
-              </div>
-              <div class="btrack">
-                <div class="bfill" style="--w:{pct:.2f}%;--c1:{c1};--c2:{c2};--glow:{glow};animation-delay:{delay:.2f}s;"></div>
-              </div>
-            </div>"""
-
-        st.html(f"""
-        <style>
-        @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=Inter:wght@400;500&display=swap');
-        *{{margin:0;padding:0;box-sizing:border-box;}} body,div{{font-family:'Inter',sans-serif;}}
-        .bcard {{
-            margin-bottom:10px;
-            background:linear-gradient(145deg,#0F1E30 0%,#0A1525 100%);
-            border:1px solid rgba(148,163,184,0.1); border-radius:13px; padding:12px 16px;
-            box-shadow:0 2px 10px rgba(0,0,0,0.4),inset 0 1px 0 rgba(255,255,255,0.03);
-            transition:all 0.3s cubic-bezier(0.4,0,0.2,1); position:relative; overflow:hidden;
-        }}
-        .bcard::after {{
-            content:''; position:absolute; top:0; left:-80%; width:40%; height:100%;
-            background:linear-gradient(105deg,transparent 40%,rgba(255,255,255,0.025) 50%,transparent 60%);
-            transition:left 0.55s ease; pointer-events:none;
-        }}
-        .bcard:hover {{ border-color:rgba(148,163,184,0.22); box-shadow:0 6px 24px rgba(0,0,0,0.5),inset 0 1px 0 rgba(255,255,255,0.05); transform:translateX(4px); }}
-        .bcard:hover::after {{ left:130%; }}
-        .bheader{{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;}}
-        .brank{{font-size:0.62rem;color:#334155;min-width:22px;letter-spacing:0.1em;font-weight:600;}}
-        .bname{{font-size:0.82rem;color:#64748B;font-weight:500;flex:1;margin-left:9px;}}
-        .bval{{font-family:'Space Grotesk',sans-serif;font-size:1rem;font-weight:700;}}
-        .btrack{{height:3px;background:rgba(15,30,50,0.9);border-radius:3px;overflow:hidden;}}
-        .bfill{{
-            height:100%;width:0%;
-            background:linear-gradient(90deg,var(--c1),var(--c2));
-            border-radius:3px; box-shadow:0 0 8px var(--glow);
-            animation:grow-bar 1.3s cubic-bezier(0.22,1,0.36,1) forwards;
-        }}
-        @keyframes grow-bar{{from{{width:0%}}to{{width:var(--w)}}}}
-        </style>
-        {bars_html}
-        """)
-
-    st.caption(
-        "Metodología: Normalización Min-Max · "
-        "Ponderaciones: IED 25% · Exportaciones 25% · Manufactura 25% · Crédito 15% · INPC 10%"
+    fig_evol = plot_cfg(fig_evol, 320)
+    fig_evol.update_layout(
+        xaxis=dict(tickmode="array", tickvals=list(range(anio_rango[0], anio_rango[1]+1)),
+                   gridcolor="rgba(255,255,255,0.04)"),
+        yaxis=dict(range=[0, 100], gridcolor="rgba(255,255,255,0.04)"),
     )
+    st.plotly_chart(fig_evol, use_container_width=True)
 
-
-# ══════════════════════════════════════════════════════════════════════
-# ICAI TEMPORAL
-# ══════════════════════════════════════════════════════════════════════
-with t_icai:
-    st.subheader("Evolución del ICAI por estado")
-
-    params_i: dict = {}
-    if estado_sel != "Todos": params_i["estado"] = estado_sel
-    if anio_sel   != "Todos": params_i["anio"]   = anio_sel
-
-    data  = api_get("/icai", **params_i)
-    df_ic = pd.DataFrame(data["datos"])
-
-    if anio_sel == "Todos":
-        fig = go.Figure()
-        for estado in (df_ic["entidad"].unique() if estado_sel == "Todos" else [estado_sel]):
-            sub   = df_ic[df_ic["entidad"] == estado]
-            color = STATE_COLORS.get(estado, METAL)
-            fig.add_trace(go.Scatter(
-                x=sub["anio"], y=sub["ICAI"], mode="lines+markers", name=estado,
-                line=dict(color=color, width=2.5),
-                marker=dict(color=color, size=7, line=dict(color="#080E1A", width=2)),
-                fill="tozeroy", fillcolor=hex_rgba(color, 0.07),
-                hovertemplate=f"<b>{estado}</b><br>%{{x}}: %{{y:.2f}} pts<extra></extra>",
-            ))
-        fig.update_layout(**chart_layout(height=430, title="ICAI 2018–2025 — Evolución temporal"))
-        fig.update_xaxes(dtick=1)
-    else:
-        colors_bar = [STATE_COLORS.get(e, METAL) for e in df_ic["entidad"]]
-        fig = go.Figure(go.Bar(
-            x=df_ic["entidad"], y=df_ic["ICAI"],
-            marker=dict(color=colors_bar, line=dict(color="rgba(148,163,184,0.12)", width=1)),
-            text=[f"{v:.2f}" for v in df_ic["ICAI"]],
-            textposition="outside", textfont=dict(color="#64748B"),
-            hovertemplate="<b>%{x}</b><br>ICAI: %{y:.2f} pts<extra></extra>",
-        ))
-        fig.update_layout(**chart_layout(height=430, title=f"ICAI — Año {anio_sel}"))
-        fig.update_yaxes(range=[0, df_ic["ICAI"].max() * 1.22])
-
-    st.plotly_chart(fig, width="stretch")
-    st.dataframe(df_ic, hide_index=True, width="stretch")
-
-
-# ══════════════════════════════════════════════════════════════════════
-# PERFIL DIMENSIONAL
-# ══════════════════════════════════════════════════════════════════════
-with t_perfil:
-    st.subheader("Perfil dimensional por estado")
-
-    _polar_style = dict(
-        bgcolor="rgba(8,14,26,0.7)",
-        radialaxis=dict(
-            visible=True, range=[0, 25],
-            gridcolor="rgba(71,85,105,0.2)",
-            tickfont=dict(color="#334155", size=9),
-            linecolor="rgba(71,85,105,0.2)",
+with col2:
+    st.markdown(f'<div class="section-hdr">{SVG_TROPHY}<span class="section-hdr-text">Ranking ICAI promedio</span></div>', unsafe_allow_html=True)
+    fig_rank = go.Figure(go.Bar(
+        x=ranking["ICAI_prom"].round(1),
+        y=ranking["entidad"],
+        orientation="h",
+        marker=dict(
+            color=[get_color(e) for e in ranking["entidad"]],
+            opacity=0.85,
+            line=dict(width=0)
         ),
-        angularaxis=dict(
-            gridcolor="rgba(71,85,105,0.15)",
-            tickfont=dict(color="#64748B", size=11),
-            linecolor="rgba(71,85,105,0.18)",
-        ),
+        text=ranking["ICAI_prom"].round(1),
+        textposition="outside",
+        textfont=dict(size=12, color="rgba(200,230,240,0.8)"),
+        hovertemplate="<b>%{y}</b><br>ICAI: %{x:.1f} pts<extra></extra>"
+    ))
+    fig_rank = plot_cfg(fig_rank, 320)
+    fig_rank.update_layout(
+        xaxis=dict(range=[0, 85]),
+        yaxis=dict(autorange="reversed"),
+        bargap=0.35,
     )
-
-    if estado_sel == "Todos":
-        st.info("Radar comparativo de los 5 estados. Selecciona uno en el panel lateral para ver el perfil detallado.")
-        fig = go.Figure()
-        for estado in ESTADOS:
-            try:
-                pd_data = api_get(f"/icai/perfil/{estado}")
-                perf    = pd_data["contribucion_por_dimension"]
-                color   = STATE_COLORS.get(estado, METAL)
-                vals    = list(perf.values())
-                keys    = list(perf.keys())
-                fig.add_trace(go.Scatterpolar(
-                    r=vals + [vals[0]], theta=keys + [keys[0]], fill="toself", name=estado,
-                    line=dict(color=color, width=2.2), fillcolor=hex_rgba(color, 0.07),
-                    hovertemplate=f"<b>{estado}</b><br>%{{theta}}: %{{r:.2f}} pts<extra></extra>",
-                ))
-            except Exception:
-                pass
-        fig.update_layout(**chart_layout(height=500, title="Perfil dimensional comparativo"))
-        fig.update_layout(polar=_polar_style)
-        st.plotly_chart(fig, width="stretch")
-    else:
-        pd_data = api_get(f"/icai/perfil/{estado_sel}")
-        perf    = pd_data["contribucion_por_dimension"]
-        color   = STATE_COLORS.get(estado_sel, METAL)
-        vals    = list(perf.values())
-        keys    = list(perf.keys())
-
-        c1, c2, c3 = st.columns(3)
-        c1.metric("Estado",           pd_data["estado"])
-        c2.metric("ICAI promedio",    f"{pd_data['ICAI_promedio']:.2f} pts")
-        c3.metric("Posición ranking", f"0{pd_data['posicion_ranking']} de 5")
-        st.caption(pd_data["interpretacion"])
-
-        col_b, col_r = st.columns(2)
-        with col_b:
-            fig = go.Figure(go.Bar(
-                x=keys, y=vals,
-                marker=dict(color=vals, colorscale=METAL_SCALE,
-                            line=dict(color="rgba(148,163,184,0.15)", width=1)),
-                text=[f"{v:.2f}" for v in vals],
-                textposition="outside", textfont=dict(color="#64748B"),
-                hovertemplate="<b>%{x}</b><br>Contribución: %{y:.2f} pts<extra></extra>",
-            ))
-            fig.update_layout(**chart_layout(height=370, title="Contribución por dimensión"))
-            fig.update_yaxes(range=[0, max(vals) * 1.3])
-            st.plotly_chart(fig, width="stretch")
-        with col_r:
-            fig = go.Figure(go.Scatterpolar(
-                r=vals + [vals[0]], theta=keys + [keys[0]],
-                fill="toself", fillcolor=hex_rgba(color, 0.1),
-                line=dict(color=color, width=2.5),
-                marker=dict(color=color, size=8, line=dict(color="#080E1A", width=2)),
-                name=estado_sel,
-                hovertemplate="<b>%{theta}</b><br>%{r:.2f} pts<extra></extra>",
-            ))
-            fig.update_layout(**chart_layout(height=370, title="Radar dimensional"))
-            fig.update_layout(polar=_polar_style)
-            st.plotly_chart(fig, width="stretch")
+    st.plotly_chart(fig_rank, use_container_width=True)
 
 
-# ══════════════════════════════════════════════════════════════════════
-# DIMENSIONES
-# ══════════════════════════════════════════════════════════════════════
-with t_dim:
-    st.subheader("Variables del ICAI")
+# ── Perfil dimensional ────────────────────────────────────────────────
+st.markdown(f'<div class="section-hdr">{SVG_TARGET}<span class="section-hdr-text">Perfil dimensional de {estado_sel} vs. promedio del corredor</span></div>', unsafe_allow_html=True)
 
-    params_e: dict = {}
-    if estado_sel != "Todos":
-        params_e["estado"] = estado_sel
+dims    = ["IED", "Exportaciones", "Manufactura", "Crédito", "INPC"]
+pesos_d = [0.25, 0.25, 0.25, 0.15, 0.10]
+cols_n  = ["norm_ied","norm_exportaciones","norm_manufactura","norm_credito","norm_inpc"]
+vals_e  = [datos_estado[c].mean() * p * 100 for c, p in zip(cols_n, pesos_d)]
+vals_c  = [panel_filt[c].mean()   * p * 100 for c, p in zip(cols_n, pesos_d)]
 
-    s_ied, s_exp, s_mfg, s_cred, s_inpc = st.tabs(
-        ["IED", "Exportaciones", "Manufactura", "Crédito", "INPC"]
-    )
+fig_dim = go.Figure()
+fig_dim.add_trace(go.Bar(
+    name="Promedio corredor", x=dims,
+    y=[round(v,2) for v in vals_c],
+    marker=dict(color="rgba(255,255,255,0.12)", line=dict(width=0)),
+    text=[f"{v:.1f}" for v in vals_c], textposition="outside",
+    textfont=dict(size=11, color="rgba(180,210,220,0.6)"),
+    hovertemplate="Promedio: %{y:.1f} pts<extra></extra>"
+))
+fig_dim.add_trace(go.Bar(
+    name=estado_sel, x=dims,
+    y=[round(v,2) for v in vals_e],
+    marker=dict(
+        color=[get_color(estado_sel)]*5,
+        opacity=0.85, line=dict(width=0)
+    ),
+    text=[f"{v:.1f}" for v in vals_e], textposition="outside",
+    textfont=dict(size=12, color="rgba(220,240,245,0.9)", family="JetBrains Mono"),
+    hovertemplate=f"{estado_sel}: %{{y:.1f}} pts<extra></extra>"
+))
+fig_dim = plot_cfg(fig_dim, 300)
+fig_dim.update_layout(
+    barmode="group", bargap=0.25, bargroupgap=0.08,
+    yaxis=dict(range=[0, 20], title="Contribución al ICAI (pts)"),
+)
+st.plotly_chart(fig_dim, use_container_width=True)
 
-    def _lines(df, x_col, y_col, hov_fmt=",.1f") -> go.Figure:
-        fig = go.Figure()
-        for estado in df["entidad"].unique():
-            sub   = df[df["entidad"] == estado]
-            color = STATE_COLORS.get(estado, METAL)
-            fig.add_trace(go.Scatter(
-                x=sub[x_col], y=sub[y_col], mode="lines+markers", name=estado,
-                line=dict(color=color, width=2.4),
-                marker=dict(color=color, size=7, line=dict(color="#080E1A", width=2)),
-                fill="tozeroy", fillcolor=hex_rgba(color, 0.06),
-                hovertemplate=f"<b>{estado}</b><br>%{{x}}: %{{y:{hov_fmt}}}<extra></extra>",
-            ))
-        return fig
+st.markdown('<div class="grad-divider"></div>', unsafe_allow_html=True)
 
-    def _bars(df, x_col, y_col, hov_fmt=",.1f") -> go.Figure:
-        fig = go.Figure()
-        for estado in df["entidad"].unique():
-            sub   = df[df["entidad"] == estado]
-            color = STATE_COLORS.get(estado, METAL)
-            fig.add_trace(go.Bar(
-                x=sub[x_col], y=sub[y_col], name=estado,
-                marker=dict(color=color, line=dict(color="rgba(148,163,184,0.1)", width=1)),
-                hovertemplate=f"<b>{estado}</b><br>%{{x}}: %{{y:{hov_fmt}}}<extra></extra>",
-            ))
-        return fig
 
-    with s_ied:
-        d  = api_get("/ied", **params_e)
-        df = pd.DataFrame(d["serie_anual"])
-        fig = _bars(df, "anio", "ied_usd", ",.1f")
-        fig.update_layout(**chart_layout(height=390, title="Inversión Extranjera Directa (Millones USD)"), barmode="group")
-        fig.update_xaxes(dtick=1)
-        st.plotly_chart(fig, width="stretch")
-        st.caption(f"Fuente: {d['fuente']} — Unidad: {d['unidad']}")
-        st.dataframe(pd.DataFrame(d["resumen_por_estado"]), hide_index=True, width="stretch")
+# ── IED + Exportaciones ───────────────────────────────────────────────
+col3, col4 = st.columns(2)
 
-    with s_exp:
-        d  = api_get("/exportaciones", **params_e)
-        df = pd.DataFrame(d["serie_anual"])
-        fig = _lines(df, "anio", "exportaciones_usd", ",.0f")
-        fig.update_layout(**chart_layout(height=390, title="Exportaciones anuales (Miles USD)"))
-        fig.update_xaxes(dtick=1)
-        st.plotly_chart(fig, width="stretch")
-        st.caption(f"Fuente: {d['fuente']} — Unidad: {d['unidad']}")
-        st.dataframe(pd.DataFrame(d["resumen_por_estado"]), hide_index=True, width="stretch")
+with col3:
+    st.markdown(f'<div class="section-hdr">{SVG_MONEY}<span class="section-hdr-text">Inversión Extranjera Directa</span></div>', unsafe_allow_html=True)
+    fig_ied = go.Figure()
+    for e in ESTADOS:
+        de = panel_filt[panel_filt["entidad"]==e].sort_values("anio")
+        sel = (e == estado_sel)
+        r,g,b = int(get_color(e)[1:3],16), int(get_color(e)[3:5],16), int(get_color(e)[5:7],16)
+        trace_ied = dict(
+            x=de["anio"], y=de["ied_usd"].round(1), name=e,
+            mode="lines+markers",
+            line=dict(color=get_color(e), width=2.5 if sel else 1),
+            marker=dict(size=6 if sel else 3),
+            opacity=1.0 if sel else 0.4,
+            hovertemplate=f"<b>{e}</b><br>%{{x}}: %{{y:.1f}} mill. USD<extra></extra>"
+        )
+        if sel:
+            trace_ied["fill"] = "tozeroy"
+            trace_ied["fillcolor"] = f"rgba({r},{g},{b},0.06)"
+        fig_ied.add_trace(go.Scatter(**trace_ied))
+    fig_ied = plot_cfg(fig_ied, 260)
+    fig_ied.update_layout(yaxis_title="Mill. USD")
+    st.plotly_chart(fig_ied, use_container_width=True)
 
-    with s_mfg:
-        d   = api_get("/manufactura", **params_e)
-        df  = pd.DataFrame(d["serie_anual"])
-        c1_, c2_ = st.columns(2)
-        with c1_:
-            fig = _lines(df, "anio", "personal_ocupado", ",.0f")
-            fig.update_layout(**chart_layout(height=360, title="Personal ocupado (personas)"))
-            fig.update_xaxes(dtick=1)
-            st.plotly_chart(fig, width="stretch")
-        with c2_:
-            fig = _lines(df, "anio", "valor_produccion", ",.0f")
-            fig.update_layout(**chart_layout(height=360, title="Valor de producción (miles MXN)"))
-            fig.update_xaxes(dtick=1)
-            st.plotly_chart(fig, width="stretch")
-        st.caption(f"Fuente: {d['fuente']}")
-
-    with s_cred:
-        d  = api_get("/credito", **params_e)
-        df = pd.DataFrame(d["serie_anual"])
-        fig = _bars(df, "anio", "credito_pesos", ",.0f")
-        fig.update_layout(**chart_layout(height=390, title="Crédito comercial empresarial (Millones MXN)"), barmode="group")
-        fig.update_xaxes(dtick=1)
-        st.plotly_chart(fig, width="stretch")
-        st.caption(f"Fuente: {d['fuente']} — Nota: {d['nota_metodologica']}")
-
-    with s_inpc:
-        d  = api_get("/inpc")
-        df = pd.DataFrame(d["serie_anual"])
-        fig = go.Figure()
-        fig.add_trace(go.Scatter(
-            x=df["anio"], y=df["inpc_general"], mode="lines+markers", name="INPC General",
-            line=dict(color="#60A5FA", width=2.5),
-            marker=dict(color="#60A5FA", size=7, line=dict(color="#080E1A", width=2)),
-            fill="tozeroy", fillcolor="rgba(96,165,250,0.07)",
-            hovertemplate="<b>INPC General</b><br>%{x}: %{y:.2f}<extra></extra>",
+with col4:
+    st.markdown(f'<div class="section-hdr">{SVG_GLOBE}<span class="section-hdr-text">Exportaciones por estado</span></div>', unsafe_allow_html=True)
+    panel_exp = panel_filt.copy()
+    panel_exp["exp_b"] = (panel_exp["exportaciones_usd"] / 1e6).round(2)
+    fig_exp = go.Figure()
+    for e in ESTADOS:
+        de = panel_exp[panel_exp["entidad"]==e].sort_values("anio")
+        sel = (e == estado_sel)
+        fig_exp.add_trace(go.Bar(
+            x=de["anio"], y=de["exp_b"], name=e,
+            marker=dict(color=get_color(e), opacity=0.85 if sel else 0.35, line=dict(width=0)),
+            hovertemplate=f"<b>{e}</b><br>%{{x}}: %{{y:.2f}} miles de mill. USD<extra></extra>"
         ))
-        fig.add_trace(go.Scatter(
-            x=df["anio"], y=df["inpc_energia"], mode="lines+markers", name="INPC Energía",
-            line=dict(color="#FBBF24", width=2.5, dash="dot"),
-            marker=dict(color="#FBBF24", size=7, line=dict(color="#080E1A", width=2)),
-            hovertemplate="<b>INPC Energía</b><br>%{x}: %{y:.2f}<extra></extra>",
+    fig_exp = plot_cfg(fig_exp, 260)
+    fig_exp.update_layout(barmode="group", bargap=0.2, yaxis_title="Miles de mill. USD")
+    st.plotly_chart(fig_exp, use_container_width=True)
+
+
+# ── Manufactura + Crédito ─────────────────────────────────────────────
+col5, col6 = st.columns(2)
+
+with col5:
+    st.markdown(f'<div class="section-hdr">{SVG_FACTORY}<span class="section-hdr-text">Personal ocupado en manufactura</span></div>', unsafe_allow_html=True)
+    panel_man = panel_filt.copy()
+    panel_man["personal_k"] = (panel_man["personal_ocupado"]/1000).round(1)
+    fig_man = go.Figure()
+    for e in ESTADOS:
+        de = panel_man[panel_man["entidad"]==e].sort_values("anio")
+        sel = (e == estado_sel)
+        r,g,b = int(get_color(e)[1:3],16), int(get_color(e)[3:5],16), int(get_color(e)[5:7],16)
+        fig_man.add_trace(go.Scatter(
+            x=de["anio"], y=de["personal_k"], name=e,
+            mode="lines",
+            line=dict(color=get_color(e), width=2.5 if sel else 1),
+            fill="tozeroy",
+            fillcolor=f"rgba({r},{g},{b},{0.15 if sel else 0.03})",
+            opacity=1.0 if sel else 0.5,
+            hovertemplate=f"<b>{e}</b><br>%{{x}}: %{{y:.1f}}k personas<extra></extra>"
         ))
-        fig.update_layout(**chart_layout(height=390, title="INPC — General y Energéticos"))
-        fig.update_xaxes(dtick=1)
-        st.plotly_chart(fig, width="stretch")
-        st.caption(f"Fuente: {d['fuente']} — Base: {d['unidad']} — {d['nota']}")
+    fig_man = plot_cfg(fig_man, 260)
+    fig_man.update_layout(yaxis_title="Miles de personas")
+    st.plotly_chart(fig_man, use_container_width=True)
+
+with col6:
+    st.markdown(f'<div class="section-hdr">{SVG_BANK}<span class="section-hdr-text">Crédito comercial empresarial</span></div>', unsafe_allow_html=True)
+    panel_cred = panel_filt.copy()
+    panel_cred["cred_k"] = (panel_cred["credito_pesos"]/1000).round(1)
+    fig_cred = go.Figure()
+    for e in ESTADOS:
+        de = panel_cred[panel_cred["entidad"]==e].sort_values("anio")
+        sel = (e == estado_sel)
+        fig_cred.add_trace(go.Scatter(
+            x=de["anio"], y=de["cred_k"], name=e,
+            mode="lines+markers",
+            line=dict(color=get_color(e), width=2.5 if sel else 1, dash="solid" if sel else "dash"),
+            marker=dict(size=5 if sel else 3),
+            opacity=1.0 if sel else 0.4,
+            hovertemplate=f"<b>{e}</b><br>%{{x}}: %{{y:.1f}} miles de mill. pesos<extra></extra>"
+        ))
+    fig_cred = plot_cfg(fig_cred, 260)
+    fig_cred.update_layout(yaxis_title="Miles de mill. pesos")
+    st.plotly_chart(fig_cred, use_container_width=True)
 
 
-# ══════════════════════════════════════════════════════════════════════
-# DATOS COMPLETOS
-# ══════════════════════════════════════════════════════════════════════
-with t_datos:
-    st.subheader("Panel de datos completo")
+# ── INPC + Tabla ──────────────────────────────────────────────────────
+col7, col8 = st.columns(2)
 
-    params_d: dict = {}
-    if estado_sel != "Todos": params_d["estado"] = estado_sel
-    if anio_sel   != "Todos": params_d["anio"]   = anio_sel
+with col7:
+    st.markdown(f'<div class="section-hdr">{SVG_TREND_DOWN}<span class="section-hdr-text">INPC general vs. subíndice energéticos</span></div>', unsafe_allow_html=True)
+    inpc_data = panel_filt[["anio","inpc_general","inpc_energia"]].drop_duplicates().sort_values("anio")
+    fig_inpc = go.Figure()
+    fig_inpc.add_trace(go.Scatter(
+        x=inpc_data["anio"], y=inpc_data["inpc_general"].round(2),
+        name="INPC General", mode="lines+markers",
+        line=dict(color="#0A9396", width=2.5),
+        marker=dict(size=6, symbol="circle"),
+        fill="tozeroy", fillcolor="rgba(10,147,150,0.06)",
+        hovertemplate="INPC General %{x}: %{y:.2f}<extra></extra>"
+    ))
+    fig_inpc.add_trace(go.Scatter(
+        x=inpc_data["anio"], y=inpc_data["inpc_energia"].round(2),
+        name="Energéticos", mode="lines+markers",
+        line=dict(color="#EE6C4D", width=2, dash="dot"),
+        marker=dict(size=5, symbol="diamond"),
+        hovertemplate="Energéticos %{x}: %{y:.2f}<extra></extra>"
+    ))
+    fig_inpc = plot_cfg(fig_inpc, 260)
+    fig_inpc.update_layout(yaxis_title="Índice (base Jul 2018=100)")
+    st.plotly_chart(fig_inpc, use_container_width=True)
 
-    datos = api_get("/datos", **params_d)
-    df_d  = pd.DataFrame(datos["datos"])
-
-    parts = [f"**{datos['total_registros']}** registros"]
-    if estado_sel != "Todos": parts.append(f"Estado: {estado_sel}")
-    if anio_sel   != "Todos": parts.append(f"Año: {anio_sel}")
-    st.caption(" · ".join(parts))
-
-    st.dataframe(df_d, hide_index=True, width="stretch")
-    st.download_button(
-        "Descargar CSV",
-        data=df_d.to_csv(index=False).encode("utf-8"),
-        file_name="panel_bajio_filtrado.csv",
-        mime="text/csv",
-    )
+with col8:
+    st.markdown(f'<div class="section-hdr">{SVG_TABLE}<span class="section-hdr-text">Datos del ICAI — {estado_sel}</span></div>', unsafe_allow_html=True)
+    tabla = datos_estado[["anio","ICAI","ied_usd","exportaciones_usd","credito_pesos","personal_ocupado"]].copy()
+    tabla.columns = ["Año","ICAI","IED (mill. USD)","Exportaciones (miles USD)","Crédito (mill. pesos)","Personal manuf."]
+    tabla["ICAI"] = tabla["ICAI"].round(1)
+    tabla["IED (mill. USD)"] = tabla["IED (mill. USD)"].round(1)
+    tabla["Exportaciones (miles USD)"] = tabla["Exportaciones (miles USD)"].apply(lambda x: f"{x:,.0f}")
+    tabla["Crédito (mill. pesos)"] = tabla["Crédito (mill. pesos)"].round(1)
+    tabla["Personal manuf."] = tabla["Personal manuf."].apply(lambda x: f"{x:,.0f}")
+    tabla = tabla.sort_values("Año", ascending=False).reset_index(drop=True)
+    st.dataframe(tabla, use_container_width=True, height=260, hide_index=True)
 
 
-# ══════════════════════════════════════════════════════════════════════
-# API EXPLORER
-# ══════════════════════════════════════════════════════════════════════
-with t_api:
-    st.subheader("API Explorer")
-    st.caption("Ejecuta cualquier endpoint en tiempo real y examina la respuesta JSON completa.")
-
-    endpoint_sel = st.selectbox("Endpoint", info["endpoints"])
-    params_api: dict = {}
-    url_path = endpoint_sel
-
-    if "{estado}" in endpoint_sel:
-        e = st.selectbox("Estado (en URL)", ESTADOS, key="api_url_e")
-        url_path = endpoint_sel.replace("{estado}", e)
-    else:
-        if endpoint_sel not in ["/", "/estados", "/inpc", "/icai/ranking"]:
-            if st.checkbox("Filtrar por estado", key="api_e_chk"):
-                params_api["estado"] = st.selectbox("Estado", ESTADOS, key="api_e2")
-        if endpoint_sel in ["/datos", "/icai"]:
-            if st.checkbox("Filtrar por año", key="api_a_chk"):
-                params_api["anio"] = st.selectbox("Año", ANIOS, key="api_a2")
-
-    qs       = "&".join(f"{k}={v}" for k, v in params_api.items())
-    full_url = f"{BASE_URL}{url_path}" + (f"?{qs}" if qs else "")
-    st.code(f"GET  {full_url}", language="bash")
-
-    if st.button("Ejecutar", type="primary"):
-        t0   = time.perf_counter()
-        resp = requests.get(full_url, timeout=5)
-        ms   = (time.perf_counter() - t0) * 1000
-
-        c1, c2, c3 = st.columns(3)
-        c1.metric("Status HTTP",         resp.status_code)
-        c2.metric("Tiempo de respuesta", f"{ms:.0f} ms")
-        c3.metric("Tamaño respuesta",    f"{len(resp.content) / 1024:.1f} KB")
-
-        st.json(resp.json())
+# ── Footer ────────────────────────────────────────────────────────────
+st.markdown('<div class="grad-divider"></div>', unsafe_allow_html=True)
+st.markdown("""
+<div style="text-align:center;padding:12px 0;font-size:10px;
+    color:rgba(180,210,220,0.25);font-family:'JetBrains Mono',monospace;letter-spacing:0.5px;">
+    ICAI — Índice Compuesto de Atractividad Industrial del Corredor del Bajío &nbsp;·&nbsp;
+    Equipo 11 · Taller de Fundamentos para el Análisis de Datos &nbsp;·&nbsp;
+    SE · INEGI (EMIM, ETEF) · CNBV · Banxico-SIE
+</div>
+""", unsafe_allow_html=True)

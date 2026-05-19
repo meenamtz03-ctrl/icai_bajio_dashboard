@@ -1,7 +1,5 @@
-fastapi>=0.111.0,<1.0.0
-uvicorn[standard]>=0.29.0
-pandas>=2.2.0
-numpy>=1.26.0
-streamlit>=1.35.0
-plotly>=5.22.0
-requests>=2.31.0
+--prefer-binary
+streamlit==1.32.0
+pandas==2.0.3
+numpy==1.24.4
+plotly==5.18.0
