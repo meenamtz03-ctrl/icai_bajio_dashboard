@@ -1,8 +1,9 @@
-setuptools>=68.0.0
+--prefer-binary
+fastapi==0.111.0
+uvicorn==0.29.0
+pandas==2.0.3
+numpy==1.24.4
+python-multipart==0.0.9
 streamlit>=1.35.0
-pandas>=2.1.0
-numpy>=1.26.0
 plotly>=5.22.0
 requests>=2.31.0
-fastapi>=0.111.0
-uvicorn[standard]>=0.29.0

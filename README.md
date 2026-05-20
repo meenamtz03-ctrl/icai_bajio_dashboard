@@ -1,60 +1,57 @@
-# Dashboard ICAI - Atractividad Industrial del Bajio
+# API - Indice de Atractividad Industrial del Bajio
 ## Equipo 11 | Taller de Fundamentos para el Analisis de Datos
 
----
+API construida con FastAPI que expone los datos del ICAI para los cinco estados
+del corredor del Bajio: San Luis Potosi, Aguascalientes, Guanajuato, Jalisco y Queretaro.
+Periodo 2018-2025.
 
-## Instalacion y ejecucion local
+## URL publica
+https://icai-bajio-api.onrender.com
 
-### 1. Instalar dependencias
+## Autenticacion
+Todos los endpoints protegidos requieren el header:
+```
+X-API-Key: icai-bajio-equipo11-2025
+```
+
+## Endpoints disponibles
+
+| Metodo | Endpoint | Descripcion |
+|--------|----------|-------------|
+| GET | / | Bienvenida (sin autenticacion) |
+| GET | /estados | Lista los 5 estados |
+| GET | /datos | Panel completo (filtrable) |
+| GET | /ied | Inversion Extranjera Directa |
+| GET | /exportaciones | Exportaciones por entidad |
+| GET | /manufactura | Actividad manufacturera |
+| GET | /credito | Credito comercial empresarial |
+| GET | /inpc | INPC y subindice energeticos |
+| GET | /icai | ICAI por estado y anio |
+| GET | /icai/ranking | Ranking ICAI promedio |
+| GET | /icai/perfil/{estado} | Perfil dimensional de un estado |
+
+## Documentacion interactiva
+Una vez desplegada: https://icai-bajio-api.onrender.com/docs
+
+## Ejemplo de uso
+```bash
+curl -H "X-API-Key: icai-bajio-equipo11-2025" https://icai-bajio-api.onrender.com/icai/ranking
+```
+
+## Instalacion local
 ```
 pip install -r requirements.txt
+uvicorn main:app --reload
 ```
+Disponible en: http://127.0.0.1:8000/docs
 
-### 2. Verificar que el archivo de datos este en la misma carpeta
-El archivo `panel_bajio.csv` debe estar en la misma carpeta que `app.py`.
+## Despliegue en Render
+- Build Command: pip install -r requirements.txt
+- Start Command: uvicorn main:app --host 0.0.0.0 --port $PORT
 
-### 3. Correr el dashboard
-```
-streamlit run app.py
-```
-
-El dashboard se abrira automaticamente en: http://localhost:8501
-
----
-
-## Publicacion en Render
-
-1. Subir esta carpeta a GitHub (incluyendo panel_bajio.csv)
-2. Crear cuenta en https://render.com
-3. New Web Service -> conectar repositorio
-4. Build Command: `pip install -r requirements.txt`
-5. Start Command: `streamlit run app.py --server.port $PORT --server.address 0.0.0.0`
-6. Deploy -> obtener URL publica
-
----
-
-## Estructura del proyecto
-
-```
-dashboard/
-    app.py              <- Codigo principal del dashboard
-    requirements.txt    <- Dependencias
-    panel_bajio.csv     <- Datos del panel consolidado
-    README.md           <- Este archivo
-```
-
----
-
-## Contenido del dashboard
-
-- KPIs: ICAI promedio, valor ultimo anio, posicion en ranking, mejor anio, diferencia vs corredor
-- Filtros: selector de estado y rango de anios en sidebar
-- Evolucion del ICAI por estado (lineas)
-- Ranking ICAI promedio (barras horizontales)
-- Perfil dimensional SLP vs promedio corredor (barras agrupadas)
-- IED por estado (lineas)
-- Exportaciones por estado (barras agrupadas)
-- Personal ocupado manufactura (areas)
-- Credito comercial (lineas)
-- INPC general vs energeticos (lineas)
-- Tabla de datos del estado seleccionado
+## Fuentes de datos
+- IED: Secretaria de Economia
+- Exportaciones: INEGI (ETEF)
+- Manufactura: INEGI (EMIM)
+- Credito Comercial: CNBV
+- INPC: Banco de Mexico / INEGI
