@@ -389,7 +389,14 @@ COLORES = {
     "Queretaro":       "#6B7EBF", "Querétaro": "#6B7EBF",
     "Aguascalientes":  "#A78BFA",
 }
-def get_color(e): return COLORES.get(e, "#888")
+def get_color(e): return COLORES.get(e, "#888888")
+
+def hex_rgba(hex_color: str, alpha: float) -> str:
+    h = hex_color.lstrip("#")
+    if len(h) == 3:
+        h = h[0]*2 + h[1]*2 + h[2]*2
+    r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+    return f"rgba({r},{g},{b},{alpha})"
 
 def nivel_icai(v):
     if v >= 40: return "Medio-Alto", "badge-alto"
@@ -632,7 +639,6 @@ with col3:
     for e in ESTADOS:
         de = panel_filt[panel_filt["entidad"]==e].sort_values("anio")
         sel = (e == estado_sel)
-        r,g,b = int(get_color(e)[1:3],16), int(get_color(e)[3:5],16), int(get_color(e)[5:7],16)
         trace_ied = dict(
             x=de["anio"], y=de["ied_usd"].round(1), name=e,
             mode="lines+markers",
@@ -643,7 +649,7 @@ with col3:
         )
         if sel:
             trace_ied["fill"] = "tozeroy"
-            trace_ied["fillcolor"] = f"rgba({r},{g},{b},0.06)"
+            trace_ied["fillcolor"] = hex_rgba(get_color(e), 0.06)
         fig_ied.add_trace(go.Scatter(**trace_ied))
     fig_ied = plot_cfg(fig_ied, 260)
     fig_ied.update_layout(yaxis_title="Mill. USD")
@@ -678,13 +684,12 @@ with col5:
     for e in ESTADOS:
         de = panel_man[panel_man["entidad"]==e].sort_values("anio")
         sel = (e == estado_sel)
-        r,g,b = int(get_color(e)[1:3],16), int(get_color(e)[3:5],16), int(get_color(e)[5:7],16)
         fig_man.add_trace(go.Scatter(
             x=de["anio"], y=de["personal_k"], name=e,
             mode="lines",
             line=dict(color=get_color(e), width=2.5 if sel else 1),
             fill="tozeroy",
-            fillcolor=f"rgba({r},{g},{b},{0.15 if sel else 0.03})",
+            fillcolor=hex_rgba(get_color(e), 0.15 if sel else 0.03),
             opacity=1.0 if sel else 0.5,
             hovertemplate=f"<b>{e}</b><br>%{{x}}: %{{y:.1f}}k personas<extra></extra>"
         ))
